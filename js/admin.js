@@ -1,16 +1,16 @@
-// Store admin credentials in localStorage (in a real app, this would be handled by a backend)
-const admins = JSON.parse(localStorage.getItem('admins')) || [];
+// Single admin credentials
+const ADMIN_USERNAME = 'malak';
+const ADMIN_PASSWORD = '123';
 
 // Handle login
 if (document.getElementById('loginForm')) {
     document.getElementById('loginForm').addEventListener('submit', (e) => {
         e.preventDefault();
-        const email = document.getElementById('email').value;
+        const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
 
-        const admin = admins.find(a => a.email === email && a.password === password);
-        if (admin) {
-            localStorage.setItem('currentAdmin', JSON.stringify(admin));
+        if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+            localStorage.setItem('adminLoggedIn', 'true');
             window.location.href = 'dashboard.html';
         } else {
             alert('Invalid credentials!');
@@ -18,30 +18,54 @@ if (document.getElementById('loginForm')) {
     });
 }
 
-// Handle registration
-if (document.getElementById('registerForm')) {
-    document.getElementById('registerForm').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const name = document.getElementById('name').value;
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-
-        if (password !== confirmPassword) {
-            alert('Passwords do not match!');
-            return;
-        }
-
-        if (admins.some(admin => admin.email === email)) {
-            alert('Email already registered!');
-            return;
-        }
-
-        admins.push({ name, email, password });
-        localStorage.setItem('admins', JSON.stringify(admins));
-        alert('Registration successful! Please login.');
+// Check admin authentication
+function checkAdminAuth() {
+    if (!localStorage.getItem('adminLoggedIn')) {
         window.location.href = 'login.html';
-    });
+    }
+}
+
+// Export questions to file
+function exportQuestions() {
+    const questions = JSON.parse(localStorage.getItem('questions')) || [];
+    const dataStr = JSON.stringify(questions, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'questions.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Import questions from file
+function importQuestions() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = (event) => {
+            try {
+                const questions = JSON.parse(event.target.result);
+                localStorage.setItem('questions', JSON.stringify(questions));
+                alert('Questions imported successfully!');
+                displayQuestions();
+            } catch (error) {
+                alert('Error importing questions. Please check the file format.');
+            }
+        };
+        
+        reader.readAsText(file);
+    };
+    
+    input.click();
 }
 
 // Handle question type selection
@@ -94,6 +118,39 @@ if (document.getElementById('questionType')) {
                     <button type="button" class="btn btn-secondary btn-sm" onclick="addOption()">Add Option</button>
                 </div>
             `;
+        } else if (type === 'matching') {
+            container.innerHTML = `
+                <div class="mb-3">
+                    <label class="form-label">Matching Pairs</label>
+                    <div id="matchingPairs">
+                        <div class="row mb-2">
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Item 1" required>
+                            </div>
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Match 1" required>
+                            </div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Item 2" required>
+                            </div>
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Match 2" required>
+                            </div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Item 3" required>
+                            </div>
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Match 3" required>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addMatchingPair()">Add Pair</button>
+                </div>
+            `;
         }
     });
 }
@@ -115,13 +172,32 @@ function addOption() {
     optionsList.appendChild(optionDiv);
 }
 
+// Function to add matching pair
+function addMatchingPair() {
+    const matchingPairs = document.getElementById('matchingPairs');
+    const pairCount = matchingPairs.children.length + 1;
+    
+    const pairDiv = document.createElement('div');
+    pairDiv.className = 'row mb-2';
+    pairDiv.innerHTML = `
+        <div class="col">
+            <input type="text" class="form-control" placeholder="Item ${pairCount}" required>
+        </div>
+        <div class="col">
+            <input type="text" class="form-control" placeholder="Match ${pairCount}" required>
+        </div>
+    `;
+    
+    matchingPairs.appendChild(pairDiv);
+}
+
 // Handle question form submission
 if (document.getElementById('questionForm')) {
     document.getElementById('questionForm').addEventListener('submit', (e) => {
         e.preventDefault();
         const type = document.getElementById('questionType').value;
         const text = document.getElementById('questionText').value;
-        let correct, options;
+        let correct, options, pairs;
 
         if (type === 'truefalse') {
             correct = document.getElementById('correctAnswer').value;
@@ -129,13 +205,58 @@ if (document.getElementById('questionForm')) {
             options = Array.from(document.querySelectorAll('#optionsList input[type="text"]'))
                 .map(input => input.value);
             correct = document.querySelector('input[name="correct"]:checked').value;
+        } else if (type === 'matching') {
+            const matchingPairs = document.getElementById('matchingPairs');
+            const pairs = [];
+            const rows = matchingPairs.querySelectorAll('.row');
+            
+            rows.forEach(row => {
+                const item = row.querySelector('.col:first-child input').value;
+                const match = row.querySelector('.col:last-child input').value;
+                pairs.push({ item, match });
+            });
+
+            const question = {
+                type,
+                text,
+                pairs,
+                maxAttempts: 3
+            };
+
+            // Save question to localStorage
+            const questions = JSON.parse(localStorage.getItem('questions')) || [];
+            questions.push(question);
+            localStorage.setItem('questions', JSON.stringify(questions));
+
+            // Save to local file
+            const dataStr = JSON.stringify(questions, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'questions.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            // Reset form and show success message
+            e.target.reset();
+            document.getElementById('optionsContainer').innerHTML = '';
+            alert('Question added successfully and saved to file!');
+            
+            // Refresh questions list
+            displayQuestions();
+            return;
         }
 
         const question = {
             type,
             text,
             correct,
-            options
+            options,
+            maxAttempts: 3
         };
 
         // Save question to localStorage
@@ -143,10 +264,23 @@ if (document.getElementById('questionForm')) {
         questions.push(question);
         localStorage.setItem('questions', JSON.stringify(questions));
 
+        // Save to local file
+        const dataStr = JSON.stringify(questions, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'questions.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
         // Reset form and show success message
         e.target.reset();
         document.getElementById('optionsContainer').innerHTML = '';
-        alert('Question added successfully!');
+        alert('Question added successfully and saved to file!');
         
         // Refresh questions list
         displayQuestions();
@@ -184,20 +318,16 @@ function deleteQuestion(index) {
 if (document.getElementById('logoutBtn')) {
     document.getElementById('logoutBtn').addEventListener('click', (e) => {
         e.preventDefault();
-        localStorage.removeItem('currentAdmin');
+        localStorage.removeItem('adminLoggedIn');
         window.location.href = 'login.html';
     });
 }
 
 // Initialize admin dashboard
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if user is logged in on protected pages
+    // Check admin authentication on protected pages
     if (window.location.pathname.includes('dashboard.html')) {
-        const currentAdmin = localStorage.getItem('currentAdmin');
-        if (!currentAdmin) {
-            window.location.href = 'login.html';
-            return;
-        }
+        checkAdminAuth();
     }
 
     // Display questions if on dashboard
