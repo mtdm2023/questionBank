@@ -1,8 +1,5 @@
 // Load questions from localStorage
-function loadQuestions() {
-    questions = JSON.parse(localStorage.getItem('questions')) || [];
-    displayQuestions();
-}
+let questions = [];
 
 // Clear user progress
 function clearProgress() {
@@ -15,25 +12,30 @@ function clearProgress() {
     loadQuestions();
 }
 
+// Load questions from localStorage
+function loadQuestions() {
+    questions = JSON.parse(localStorage.getItem('questions')) || [];
+    displayQuestions();
+}
+
 // Function to display questions
 function displayQuestions() {
     const container = document.getElementById('questions-container');
     if (!container) return;
 
-    // Add reset progress button
-    const resetButton = document.createElement('div');
-    resetButton.className = 'text-center mb-4';
-    resetButton.innerHTML = `
-        <button class="btn btn-secondary" onclick="clearProgress()">
-            <i class="fas fa-redo"></i> Reset All Progress
-        </button>
+    let html = `
+        <div class="text-center mb-4">
+            <button class="btn btn-secondary" onclick="clearProgress()">
+                <i class="fas fa-redo"></i> Reset All Progress
+            </button>
+        </div>
     `;
-    container.innerHTML = '';
-    container.appendChild(resetButton);
 
-    container.innerHTML += questions.map((q, index) => {
+    html += questions.map((q, index) => {
         let content = '';
+        // Get attempts from localStorage, default to 0 if not set
         const attempts = parseInt(localStorage.getItem(`question_${index}_attempts`) || '0');
+        // Get answered state from localStorage, default to false if not set
         const isAnswered = localStorage.getItem(`question_${index}_answered`) === 'true';
         const isDisabled = attempts >= q.maxAttempts || isAnswered;
 
@@ -126,6 +128,8 @@ function displayQuestions() {
             </div>
         `;
     }).join('');
+
+    container.innerHTML = html;
 }
 
 // Check matching answer
