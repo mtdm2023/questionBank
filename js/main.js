@@ -18,6 +18,21 @@ function loadQuestions() {
     displayQuestions();
 }
 
+// Get correct answer text based on question type
+function getCorrectAnswerText(question) {
+    switch(question.type) {
+        case 'matching':
+            return question.pairs.map(pair => `${pair.item} → ${pair.match}`).join('<br>');
+        case 'multichoice':
+        case 'definition':
+            return question.options[parseInt(question.correct)];
+        case 'truefalse':
+            return question.correct;
+        default:
+            return '';
+    }
+}
+
 // Function to display questions
 function displayQuestions() {
     const container = document.getElementById('questions-container');
@@ -33,9 +48,7 @@ function displayQuestions() {
 
     html += questions.map((q, index) => {
         let content = '';
-        // Get attempts from localStorage, default to 0 if not set
         const attempts = parseInt(localStorage.getItem(`question_${index}_attempts`) || '0');
-        // Get answered state from localStorage, default to false if not set
         const isAnswered = localStorage.getItem(`question_${index}_answered`) === 'true';
         const isDisabled = attempts >= q.maxAttempts || isAnswered;
 
@@ -67,7 +80,7 @@ function displayQuestions() {
                     ${isAnswered ? `
                         <div class="alert alert-info mt-2">
                             Correct matches:<br>
-                            ${q.pairs.map(pair => `${pair.item} → ${pair.match}`).join('<br>')}
+                            ${getCorrectAnswerText(q)}
                         </div>
                     ` : ''}
                     <div class="feedback mt-2"></div>
@@ -116,8 +129,7 @@ function displayQuestions() {
                     ${content}
                     ${isAnswered ? `
                         <div class="alert alert-info mt-2">
-                            Correct answer: ${q.type === 'multichoice' || q.type === 'definition' ? 
-                                q.options[q.correct] : q.correct}
+                            <strong>Correct answer:</strong> ${getCorrectAnswerText(q)}
                         </div>
                     ` : ''}
                     <div class="feedback mt-2"></div>
@@ -177,7 +189,7 @@ function checkAnswer(index) {
     localStorage.setItem(`question_${index}_attempts`, attempts);
 
     const userAnswer = selected.value;
-    const isCorrect = userAnswer === question.correct;
+    const isCorrect = userAnswer === question.correct.toString();
     
     if (isCorrect) {
         feedback.innerHTML = '<div class="alert alert-success">Correct! Well done!</div>';
