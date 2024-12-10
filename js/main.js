@@ -27,7 +27,7 @@ function getCorrectAnswerText(question) {
         case 'definition':
             return question.options[parseInt(question.correct)];
         case 'truefalse':
-            return question.correct;
+            return question.correct === 'true' ? 'True' : 'False';
         default:
             return '';
     }
@@ -77,21 +77,12 @@ function displayQuestions() {
                             Check Answer
                         </button>
                     ` : ''}
-                    ${isAnswered ? `
-                        <div class="alert alert-info mt-2">
-                            Correct matches:<br>
-                            ${getCorrectAnswerText(q)}
-                        </div>
-                    ` : ''}
-                    <div class="feedback mt-2"></div>
-                    ${attempts < q.maxAttempts && !isAnswered ? `
-                        <small class="text-muted">Attempts left: ${q.maxAttempts - attempts}</small>
-                    ` : ''}
+                    <div id="feedback-${index}" class="feedback mt-2"></div>
                 </div>
             `;
         } else if (q.type === 'truefalse') {
             content = `
-                <div class="true-false-question mb-3">
+                <div class="true-false-question mb-3" id="question-${index}">
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="q${index}" value="true" ${isDisabled ? 'disabled' : ''}>
                         <label class="form-check-label">True</label>
@@ -103,11 +94,12 @@ function displayQuestions() {
                     ${!isDisabled ? `
                         <button class="btn btn-primary check-answer" onclick="checkAnswer(${index})">Submit</button>
                     ` : ''}
+                    <div id="feedback-${index}" class="feedback mt-2"></div>
                 </div>
             `;
         } else {
             content = `
-                <div class="multiple-choice-question mb-3">
+                <div class="multiple-choice-question mb-3" id="question-${index}">
                     ${q.options.map((option, i) => `
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="q${index}" value="${i}" ${isDisabled ? 'disabled' : ''}>
@@ -117,6 +109,7 @@ function displayQuestions() {
                     ${!isDisabled ? `
                         <button class="btn btn-primary check-answer" onclick="checkAnswer(${index})">Submit</button>
                     ` : ''}
+                    <div id="feedback-${index}" class="feedback mt-2"></div>
                 </div>
             `;
         }
@@ -132,7 +125,6 @@ function displayQuestions() {
                             <strong>Correct answer:</strong> ${getCorrectAnswerText(q)}
                         </div>
                     ` : ''}
-                    <div class="feedback mt-2"></div>
                     ${attempts < q.maxAttempts && !isAnswered ? `
                         <small class="text-muted">Attempts left: ${q.maxAttempts - attempts}</small>
                     ` : ''}
@@ -142,6 +134,17 @@ function displayQuestions() {
     }).join('');
 
     container.innerHTML = html;
+
+    // Restore feedback messages
+    questions.forEach((_, index) => {
+        const feedback = localStorage.getItem(`question_${index}_feedback`);
+        if (feedback) {
+            const feedbackElement = document.getElementById(`feedback-${index}`);
+            if (feedbackElement) {
+                feedbackElement.innerHTML = feedback;
+            }
+        }
+    });
 }
 
 // Check matching answer
@@ -149,7 +152,7 @@ function checkMatchingAnswer(index) {
     const question = questions[index];
     const questionDiv = document.querySelector(`[data-index="${index}"]`);
     const selects = questionDiv.querySelectorAll('.match-select');
-    const feedback = questionDiv.querySelector('.feedback');
+    const feedbackElement = document.getElementById(`feedback-${index}`);
     
     let attempts = parseInt(localStorage.getItem(`question_${index}_attempts`) || '0');
     attempts++;
@@ -160,24 +163,26 @@ function checkMatchingAnswer(index) {
     
     const isCorrect = userAnswers.every((answer, i) => answer === correctAnswers[i]);
     
-    if (isCorrect) {
-        feedback.innerHTML = '<div class="alert alert-success">Correct! Well done!</div>';
+    const feedbackHtml = isCorrect ? 
+        '<div class="alert alert-success">Correct! Well done!</div>' : 
+        '<div class="alert alert-danger">Incorrect. Try again!</div>';
+    
+    feedbackElement.innerHTML = feedbackHtml;
+    localStorage.setItem(`question_${index}_feedback`, feedbackHtml);
+    
+    if (isCorrect || attempts >= question.maxAttempts) {
         localStorage.setItem(`question_${index}_answered`, 'true');
-        displayQuestions();
-    } else {
-        feedback.innerHTML = '<div class="alert alert-danger">Incorrect. Try again!</div>';
-        if (attempts >= question.maxAttempts) {
-            localStorage.setItem(`question_${index}_answered`, 'true');
-            displayQuestions();
-        }
     }
+    
+    displayQuestions();
 }
 
 // Check other question types
 function checkAnswer(index) {
     const question = questions[index];
+    const questionDiv = document.getElementById(`question-${index}`);
     const selected = document.querySelector(`input[name="q${index}"]:checked`);
-    const feedback = document.querySelector(`#questions-container .card:nth-child(${index + 1}) .feedback`);
+    const feedbackElement = document.getElementById(`feedback-${index}`);
     
     if (!selected) {
         alert('Please select an answer');
@@ -189,19 +194,20 @@ function checkAnswer(index) {
     localStorage.setItem(`question_${index}_attempts`, attempts);
 
     const userAnswer = selected.value;
-    const isCorrect = userAnswer === question.correct.toString();
+    const isCorrect = userAnswer === question.correct;
     
-    if (isCorrect) {
-        feedback.innerHTML = '<div class="alert alert-success">Correct! Well done!</div>';
+    const feedbackHtml = isCorrect ? 
+        '<div class="alert alert-success">Correct! Well done!</div>' : 
+        '<div class="alert alert-danger">Incorrect. Try again!</div>';
+    
+    feedbackElement.innerHTML = feedbackHtml;
+    localStorage.setItem(`question_${index}_feedback`, feedbackHtml);
+    
+    if (isCorrect || attempts >= question.maxAttempts) {
         localStorage.setItem(`question_${index}_answered`, 'true');
-        displayQuestions();
-    } else {
-        feedback.innerHTML = '<div class="alert alert-danger">Incorrect. Try again!</div>';
-        if (attempts >= question.maxAttempts) {
-            localStorage.setItem(`question_${index}_answered`, 'true');
-            displayQuestions();
-        }
     }
+    
+    displayQuestions();
 }
 
 // Initialize the page
