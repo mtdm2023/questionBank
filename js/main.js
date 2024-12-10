@@ -4,12 +4,34 @@ function loadQuestions() {
     displayQuestions();
 }
 
+// Clear user progress
+function clearProgress() {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+        if (key.startsWith('question_')) {
+            localStorage.removeItem(key);
+        }
+    });
+    loadQuestions();
+}
+
 // Function to display questions
 function displayQuestions() {
     const container = document.getElementById('questions-container');
     if (!container) return;
 
-    container.innerHTML = questions.map((q, index) => {
+    // Add reset progress button
+    const resetButton = document.createElement('div');
+    resetButton.className = 'text-center mb-4';
+    resetButton.innerHTML = `
+        <button class="btn btn-secondary" onclick="clearProgress()">
+            <i class="fas fa-redo"></i> Reset All Progress
+        </button>
+    `;
+    container.innerHTML = '';
+    container.appendChild(resetButton);
+
+    container.innerHTML += questions.map((q, index) => {
         let content = '';
         const attempts = parseInt(localStorage.getItem(`question_${index}_attempts`) || '0');
         const isAnswered = localStorage.getItem(`question_${index}_answered`) === 'true';
@@ -40,7 +62,7 @@ function displayQuestions() {
                             Check Answer
                         </button>
                     ` : ''}
-                    ${isDisabled ? `
+                    ${isAnswered ? `
                         <div class="alert alert-info mt-2">
                             Correct matches:<br>
                             ${q.pairs.map(pair => `${pair.item} → ${pair.match}`).join('<br>')}
@@ -90,7 +112,7 @@ function displayQuestions() {
                     <h5 class="card-title">Question ${index + 1}</h5>
                     <p class="card-text">${q.text}</p>
                     ${content}
-                    ${isDisabled && q.type !== 'matching' ? `
+                    ${isAnswered ? `
                         <div class="alert alert-info mt-2">
                             Correct answer: ${q.type === 'multichoice' || q.type === 'definition' ? 
                                 q.options[q.correct] : q.correct}
@@ -129,6 +151,7 @@ function checkMatchingAnswer(index) {
     } else {
         feedback.innerHTML = '<div class="alert alert-danger">Incorrect. Try again!</div>';
         if (attempts >= question.maxAttempts) {
+            localStorage.setItem(`question_${index}_answered`, 'true');
             displayQuestions();
         }
     }
@@ -155,12 +178,13 @@ function checkAnswer(index) {
     if (isCorrect) {
         feedback.innerHTML = '<div class="alert alert-success">Correct! Well done!</div>';
         localStorage.setItem(`question_${index}_answered`, 'true');
+        displayQuestions();
     } else {
         feedback.innerHTML = '<div class="alert alert-danger">Incorrect. Try again!</div>';
-    }
-
-    if (attempts >= question.maxAttempts || isCorrect) {
-        displayQuestions();
+        if (attempts >= question.maxAttempts) {
+            localStorage.setItem(`question_${index}_answered`, 'true');
+            displayQuestions();
+        }
     }
 }
 
