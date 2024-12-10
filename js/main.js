@@ -1,16 +1,6 @@
-// Load questions from file or localStorage
-async function loadQuestions() {
-    try {
-        const response = await fetch('save_questions.php');
-        if (response.ok) {
-            questions = await response.json();
-        } else {
-            questions = JSON.parse(localStorage.getItem('questions')) || [];
-        }
-    } catch (error) {
-        console.error('Error loading questions:', error);
-        questions = JSON.parse(localStorage.getItem('questions')) || [];
-    }
+// Load questions from localStorage
+function loadQuestions() {
+    questions = JSON.parse(localStorage.getItem('questions')) || [];
     displayQuestions();
 }
 
