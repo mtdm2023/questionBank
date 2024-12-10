@@ -2,6 +2,61 @@
 const ADMIN_USERNAME = 'malak';
 const ADMIN_PASSWORD = '123';
 
+// Save questions to localStorage and generate downloadable file
+function saveQuestionsToFile(questions) {
+    // Save to localStorage
+    localStorage.setItem('questions', JSON.stringify(questions));
+    
+    // Create and download JSON file
+    const dataStr = JSON.stringify(questions, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    // Update the questions.json file link
+    const downloadLink = document.getElementById('downloadQuestionsLink');
+    if (downloadLink) {
+        downloadLink.href = url;
+        downloadLink.download = 'questions.json';
+        downloadLink.style.display = 'inline-block';
+    }
+}
+
+// Delete all questions
+function deleteAllQuestions() {
+    if (confirm('Are you sure you want to delete all questions? This cannot be undone.')) {
+        localStorage.setItem('questions', '[]');
+        displayQuestions();
+        
+        // Update download link
+        const downloadLink = document.getElementById('downloadQuestionsLink');
+        if (downloadLink) {
+            downloadLink.style.display = 'none';
+        }
+        
+        alert('All questions have been deleted.');
+    }
+}
+
+// Import questions from file
+function importQuestions(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const questions = JSON.parse(e.target.result);
+                localStorage.setItem('questions', JSON.stringify(questions));
+                saveQuestionsToFile(questions);
+                displayQuestions();
+                alert('Questions imported successfully!');
+            } catch (error) {
+                alert('Error importing questions. Please check the file format.');
+            }
+        };
+        reader.readAsText(file);
+    }
+}
+
 // Handle login
 if (document.getElementById('loginForm')) {
     document.getElementById('loginForm').addEventListener('submit', (e) => {
@@ -25,49 +80,6 @@ function checkAdminAuth() {
     }
 }
 
-// Export questions to file
-function exportQuestions() {
-    const questions = JSON.parse(localStorage.getItem('questions')) || [];
-    const dataStr = JSON.stringify(questions, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'questions.json';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// Import questions from file
-function importQuestions() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        
-        reader.onload = (event) => {
-            try {
-                const questions = JSON.parse(event.target.result);
-                localStorage.setItem('questions', JSON.stringify(questions));
-                alert('Questions imported successfully!');
-                displayQuestions();
-            } catch (error) {
-                alert('Error importing questions. Please check the file format.');
-            }
-        };
-        
-        reader.readAsText(file);
-    };
-    
-    input.click();
-}
-
 // Handle question type selection
 if (document.getElementById('questionType')) {
     document.getElementById('questionType').addEventListener('change', (e) => {
@@ -75,7 +87,24 @@ if (document.getElementById('questionType')) {
         const container = document.getElementById('optionsContainer');
         container.innerHTML = '';
 
-        if (type === 'truefalse') {
+        if (type === 'matching') {
+            container.innerHTML = `
+                <div class="mb-3">
+                    <label class="form-label">Matching Pairs</label>
+                    <div id="matchingPairs">
+                        <div class="row mb-2">
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Item 1" required>
+                            </div>
+                            <div class="col">
+                                <input type="text" class="form-control" placeholder="Match 1" required>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addMatchingPair()">Add Pair</button>
+                </div>
+            `;
+        } else if (type === 'truefalse') {
             container.innerHTML = `
                 <div class="mb-3">
                     <label class="form-label">Correct Answer</label>
@@ -102,74 +131,12 @@ if (document.getElementById('questionType')) {
                                 <input type="radio" name="correct" value="1" required>
                             </div>
                         </div>
-                        <div class="input-group mb-2">
-                            <input type="text" class="form-control" placeholder="Option 3" required>
-                            <div class="input-group-text">
-                                <input type="radio" name="correct" value="2" required>
-                            </div>
-                        </div>
-                        <div class="input-group mb-2">
-                            <input type="text" class="form-control" placeholder="Option 4" required>
-                            <div class="input-group-text">
-                                <input type="radio" name="correct" value="3" required>
-                            </div>
-                        </div>
                     </div>
                     <button type="button" class="btn btn-secondary btn-sm" onclick="addOption()">Add Option</button>
                 </div>
             `;
-        } else if (type === 'matching') {
-            container.innerHTML = `
-                <div class="mb-3">
-                    <label class="form-label">Matching Pairs</label>
-                    <div id="matchingPairs">
-                        <div class="row mb-2">
-                            <div class="col">
-                                <input type="text" class="form-control" placeholder="Item 1" required>
-                            </div>
-                            <div class="col">
-                                <input type="text" class="form-control" placeholder="Match 1" required>
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col">
-                                <input type="text" class="form-control" placeholder="Item 2" required>
-                            </div>
-                            <div class="col">
-                                <input type="text" class="form-control" placeholder="Match 2" required>
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col">
-                                <input type="text" class="form-control" placeholder="Item 3" required>
-                            </div>
-                            <div class="col">
-                                <input type="text" class="form-control" placeholder="Match 3" required>
-                            </div>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="addMatchingPair()">Add Pair</button>
-                </div>
-            `;
         }
     });
-}
-
-// Function to add more options for multiple choice questions
-function addOption() {
-    const optionsList = document.getElementById('optionsList');
-    const optionsCount = optionsList.children.length;
-    
-    const optionDiv = document.createElement('div');
-    optionDiv.className = 'input-group mb-2';
-    optionDiv.innerHTML = `
-        <input type="text" class="form-control" placeholder="Option ${optionsCount + 1}" required>
-        <div class="input-group-text">
-            <input type="radio" name="correct" value="${optionsCount}" required>
-        </div>
-    `;
-    
-    optionsList.appendChild(optionDiv);
 }
 
 // Function to add matching pair
@@ -197,18 +164,11 @@ if (document.getElementById('questionForm')) {
         e.preventDefault();
         const type = document.getElementById('questionType').value;
         const text = document.getElementById('questionText').value;
-        let correct, options, pairs;
+        let question;
 
-        if (type === 'truefalse') {
-            correct = document.getElementById('correctAnswer').value;
-        } else if (type === 'multichoice' || type === 'definition') {
-            options = Array.from(document.querySelectorAll('#optionsList input[type="text"]'))
-                .map(input => input.value);
-            correct = document.querySelector('input[name="correct"]:checked').value;
-        } else if (type === 'matching') {
-            const matchingPairs = document.getElementById('matchingPairs');
+        if (type === 'matching') {
             const pairs = [];
-            const rows = matchingPairs.querySelectorAll('.row');
+            const rows = document.querySelectorAll('#matchingPairs .row');
             
             rows.forEach(row => {
                 const item = row.querySelector('.col:first-child input').value;
@@ -216,101 +176,81 @@ if (document.getElementById('questionForm')) {
                 pairs.push({ item, match });
             });
 
-            const question = {
+            question = {
                 type,
                 text,
                 pairs,
                 maxAttempts: 3
             };
+        } else {
+            let correct, options;
+            if (type === 'truefalse') {
+                correct = document.getElementById('correctAnswer').value;
+            } else {
+                options = Array.from(document.querySelectorAll('#optionsList input[type="text"]'))
+                    .map(input => input.value);
+                correct = document.querySelector('input[name="correct"]:checked').value;
+            }
 
-            // Save question to localStorage
-            const questions = JSON.parse(localStorage.getItem('questions')) || [];
-            questions.push(question);
-            localStorage.setItem('questions', JSON.stringify(questions));
-
-            // Save to local file
-            const dataStr = JSON.stringify(questions, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'questions.json';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-
-            // Reset form and show success message
-            e.target.reset();
-            document.getElementById('optionsContainer').innerHTML = '';
-            alert('Question added successfully and saved to file!');
-            
-            // Refresh questions list
-            displayQuestions();
-            return;
+            question = {
+                type,
+                text,
+                correct,
+                options,
+                maxAttempts: 3
+            };
         }
 
-        const question = {
-            type,
-            text,
-            correct,
-            options,
-            maxAttempts: 3
-        };
-
-        // Save question to localStorage
+        // Save question to localStorage and update file
         const questions = JSON.parse(localStorage.getItem('questions')) || [];
         questions.push(question);
-        localStorage.setItem('questions', JSON.stringify(questions));
-
-        // Save to local file
-        const dataStr = JSON.stringify(questions, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
+        saveQuestionsToFile(questions);
         
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'questions.json';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        // Reset form and show success message
+        // Reset form and refresh display
         e.target.reset();
         document.getElementById('optionsContainer').innerHTML = '';
-        alert('Question added successfully and saved to file!');
-        
-        // Refresh questions list
         displayQuestions();
+        alert('Question added successfully!');
     });
 }
 
-// Display existing questions in admin dashboard
+// Display questions in admin dashboard
 function displayQuestions() {
     const questionsList = document.getElementById('questionsList');
     if (!questionsList) return;
 
     const questions = JSON.parse(localStorage.getItem('questions')) || [];
-    questionsList.innerHTML = questions.map((q, i) => `
+    
+    const html = questions.map((q, i) => `
         <div class="list-group-item">
             <div class="d-flex justify-content-between align-items-center">
                 <h6 class="mb-1">${q.text}</h6>
                 <span class="badge bg-primary">${q.type}</span>
             </div>
-            <button class="btn btn-danger btn-sm mt-2" onclick="deleteQuestion(${i})">Delete</button>
+            <p class="mb-1">
+                ${q.type === 'matching' ? 
+                    q.pairs.map(p => `${p.item} → ${p.match}`).join('<br>') :
+                    q.type === 'multichoice' || q.type === 'definition' ?
+                        `Options: ${q.options.join(', ')}` :
+                        `Answer: ${q.correct}`
+                }
+            </p>
+            <button class="btn btn-danger btn-sm" onclick="deleteQuestion(${i})">Delete</button>
         </div>
     `).join('');
+
+    questionsList.innerHTML = html;
 }
 
-// Delete question
+// Delete individual question
 function deleteQuestion(index) {
     if (confirm('Are you sure you want to delete this question?')) {
         const questions = JSON.parse(localStorage.getItem('questions')) || [];
         questions.splice(index, 1);
         localStorage.setItem('questions', JSON.stringify(questions));
+        saveQuestionsToFile(questions);
         displayQuestions();
+        alert('Question deleted!');
     }
 }
 
@@ -325,11 +265,25 @@ if (document.getElementById('logoutBtn')) {
 
 // Initialize admin dashboard
 document.addEventListener('DOMContentLoaded', () => {
-    // Check admin authentication on protected pages
     if (window.location.pathname.includes('dashboard.html')) {
         checkAdminAuth();
     }
-
-    // Display questions if on dashboard
     displayQuestions();
 });
+
+// Function to add more options for multiple choice questions
+function addOption() {
+    const optionsList = document.getElementById('optionsList');
+    const optionsCount = optionsList.children.length;
+    
+    const optionDiv = document.createElement('div');
+    optionDiv.className = 'input-group mb-2';
+    optionDiv.innerHTML = `
+        <input type="text" class="form-control" placeholder="Option ${optionsCount + 1}" required>
+        <div class="input-group-text">
+            <input type="radio" name="correct" value="${optionsCount}" required>
+        </div>
+    `;
+    
+    optionsList.appendChild(optionDiv);
+}

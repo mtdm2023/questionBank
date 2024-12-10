@@ -1,13 +1,14 @@
 // Load questions from file or localStorage
 async function loadQuestions() {
     try {
-        const response = await fetch('questions.json');
+        const response = await fetch('save_questions.php');
         if (response.ok) {
             questions = await response.json();
         } else {
             questions = JSON.parse(localStorage.getItem('questions')) || [];
         }
     } catch (error) {
+        console.error('Error loading questions:', error);
         questions = JSON.parse(localStorage.getItem('questions')) || [];
     }
     displayQuestions();
@@ -15,177 +16,165 @@ async function loadQuestions() {
 
 // Function to display questions
 function displayQuestions() {
-    const questionsList = document.getElementById('questionsList');
-    questionsList.innerHTML = '';
+    const container = document.getElementById('questions-container');
+    if (!container) return;
 
-    questions.forEach((question, index) => {
-        const col = document.createElement('div');
-        col.className = 'col-md-12';
-        
-        let optionsHtml = '';
-        if (question.type === 'truefalse') {
-            optionsHtml = `
-                <div class="form-check">
-                    <input type="radio" name="q${index}" class="form-check-input" value="true">
-                    <label class="form-check-label">True</label>
-                </div>
-                <div class="form-check">
-                    <input type="radio" name="q${index}" class="form-check-input" value="false">
-                    <label class="form-check-label">False</label>
+    container.innerHTML = questions.map((q, index) => {
+        let content = '';
+        const attempts = parseInt(localStorage.getItem(`question_${index}_attempts`) || '0');
+        const isAnswered = localStorage.getItem(`question_${index}_answered`) === 'true';
+        const isDisabled = attempts >= q.maxAttempts || isAnswered;
+
+        if (q.type === 'matching') {
+            const shuffledMatches = [...q.pairs].map(p => p.match).sort(() => Math.random() - 0.5);
+            content = `
+                <div class="matching-question mb-3" data-index="${index}">
+                    <p class="mb-2">${q.text}</p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            ${q.pairs.map((pair, i) => `
+                                <div class="matching-item mb-2">
+                                    <span class="item-text">${pair.item}</span>
+                                    <select class="form-select match-select" ${isDisabled ? 'disabled' : ''}>
+                                        <option value="">Select a match</option>
+                                        ${shuffledMatches.map((match, j) => `
+                                            <option value="${match}">${match}</option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ${!isDisabled ? `
+                        <button class="btn btn-primary check-matching" onclick="checkMatchingAnswer(${index})">
+                            Check Answer
+                        </button>
+                    ` : ''}
+                    ${isDisabled ? `
+                        <div class="alert alert-info mt-2">
+                            Correct matches:<br>
+                            ${q.pairs.map(pair => `${pair.item} → ${pair.match}`).join('<br>')}
+                        </div>
+                    ` : ''}
+                    <div class="feedback mt-2"></div>
+                    ${attempts < q.maxAttempts && !isAnswered ? `
+                        <small class="text-muted">Attempts left: ${q.maxAttempts - attempts}</small>
+                    ` : ''}
                 </div>
             `;
-        } else if (question.type === 'multichoice' || question.type === 'definition') {
-            optionsHtml = question.options.map((option, i) => `
-                <div class="form-check">
-                    <input type="radio" name="q${index}" class="form-check-input" value="${i}">
-                    <label class="form-check-label">${option}</label>
-                </div>
-            `).join('');
-        } else if (question.type === 'matching') {
-            const shuffledMatches = [...question.pairs].map(p => p.match).sort(() => Math.random() - 0.5);
-            optionsHtml = `
-                <div class="matching-container">
-                    <div class="matching-items">
-                        ${question.pairs.map((pair, i) => `
-                            <div class="matching-item" data-item="${i}">${pair.item}</div>
-                        `).join('')}
+        } else if (q.type === 'truefalse') {
+            content = `
+                <div class="true-false-question mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="q${index}" value="true" ${isDisabled ? 'disabled' : ''}>
+                        <label class="form-check-label">True</label>
                     </div>
-                    <div class="matching-matches">
-                        ${shuffledMatches.map((match, i) => `
-                            <div class="matching-item" data-match="${i}">${match}</div>
-                        `).join('')}
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="q${index}" value="false" ${isDisabled ? 'disabled' : ''}>
+                        <label class="form-check-label">False</label>
                     </div>
+                    ${!isDisabled ? `
+                        <button class="btn btn-primary check-answer" onclick="checkAnswer(${index})">Submit</button>
+                    ` : ''}
                 </div>
-                <input type="hidden" name="q${index}" value="">
+            `;
+        } else {
+            content = `
+                <div class="multiple-choice-question mb-3">
+                    ${q.options.map((option, i) => `
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="q${index}" value="${i}" ${isDisabled ? 'disabled' : ''}>
+                            <label class="form-check-label">${option}</label>
+                        </div>
+                    `).join('')}
+                    ${!isDisabled ? `
+                        <button class="btn btn-primary check-answer" onclick="checkAnswer(${index})">Submit</button>
+                    ` : ''}
+                </div>
             `;
         }
 
-        col.innerHTML = `
-            <div class="card question-card">
+        return `
+            <div class="card mb-3 question-card">
                 <div class="card-body">
-                    <div class="question-number">Question ${index + 1}</div>
-                    <span class="badge bg-primary question-type-badge">${question.type}</span>
-                    <h5 class="card-title mb-4">${question.text}</h5>
-                    <form class="question-form" data-index="${index}" data-attempts="0" data-max-attempts="${question.maxAttempts || 3}">
-                        ${optionsHtml}
-                        <button type="submit" class="btn btn-primary mt-3">Submit Answer</button>
-                        <div class="attempts-left">Attempts left: ${question.maxAttempts || 3}</div>
-                    </form>
+                    <h5 class="card-title">Question ${index + 1}</h5>
+                    <p class="card-text">${q.text}</p>
+                    ${content}
+                    ${isDisabled && q.type !== 'matching' ? `
+                        <div class="alert alert-info mt-2">
+                            Correct answer: ${q.type === 'multichoice' || q.type === 'definition' ? 
+                                q.options[q.correct] : q.correct}
+                        </div>
+                    ` : ''}
+                    <div class="feedback mt-2"></div>
+                    ${attempts < q.maxAttempts && !isAnswered ? `
+                        <small class="text-muted">Attempts left: ${q.maxAttempts - attempts}</small>
+                    ` : ''}
                 </div>
             </div>
         `;
-
-        questionsList.appendChild(col);
-
-        // Add matching functionality if needed
-        if (question.type === 'matching') {
-            const form = col.querySelector('.question-form');
-            const items = form.querySelectorAll('.matching-items .matching-item');
-            const matches = form.querySelectorAll('.matching-matches .matching-item');
-            let selectedItem = null;
-
-            items.forEach(item => {
-                item.addEventListener('click', () => {
-                    if (selectedItem) selectedItem.classList.remove('selected');
-                    item.classList.add('selected');
-                    selectedItem = item;
-                });
-            });
-
-            matches.forEach(match => {
-                match.addEventListener('click', () => {
-                    if (selectedItem) {
-                        const itemIndex = selectedItem.dataset.item;
-                        const matchIndex = match.dataset.match;
-                        selectedItem.classList.remove('selected');
-                        selectedItem.dataset.matched = matchIndex;
-                        selectedItem = null;
-                        
-                        // Check if all items are matched
-                        const allMatched = Array.from(items).every(item => item.dataset.matched !== undefined);
-                        if (allMatched) {
-                            const answers = Array.from(items).map(item => item.dataset.matched);
-                            form.querySelector('input[type="hidden"]').value = answers.join(',');
-                        }
-                    }
-                });
-            });
-        }
-    });
-
-    // Add event listeners to forms
-    document.querySelectorAll('.question-form').forEach(form => {
-        form.addEventListener('submit', handleAnswerSubmission);
-    });
+    }).join('');
 }
 
-// Handle answer submission
-function handleAnswerSubmission(e) {
-    e.preventDefault();
-    const form = e.target;
-    const index = form.dataset.index;
+// Check matching answer
+function checkMatchingAnswer(index) {
     const question = questions[index];
-    const attempts = parseInt(form.dataset.attempts);
-    const maxAttempts = parseInt(form.dataset.maxAttempts);
+    const questionDiv = document.querySelector(`[data-index="${index}"]`);
+    const selects = questionDiv.querySelectorAll('.match-select');
+    const feedback = questionDiv.querySelector('.feedback');
     
-    if (attempts >= maxAttempts) {
+    let attempts = parseInt(localStorage.getItem(`question_${index}_attempts`) || '0');
+    attempts++;
+    localStorage.setItem(`question_${index}_attempts`, attempts);
+
+    const userAnswers = Array.from(selects).map(select => select.value);
+    const correctAnswers = question.pairs.map(pair => pair.match);
+    
+    const isCorrect = userAnswers.every((answer, i) => answer === correctAnswers[i]);
+    
+    if (isCorrect) {
+        feedback.innerHTML = '<div class="alert alert-success">Correct! Well done!</div>';
+        localStorage.setItem(`question_${index}_answered`, 'true');
+        displayQuestions();
+    } else {
+        feedback.innerHTML = '<div class="alert alert-danger">Incorrect. Try again!</div>';
+        if (attempts >= question.maxAttempts) {
+            displayQuestions();
+        }
+    }
+}
+
+// Check other question types
+function checkAnswer(index) {
+    const question = questions[index];
+    const selected = document.querySelector(`input[name="q${index}"]:checked`);
+    const feedback = document.querySelector(`#questions-container .card:nth-child(${index + 1}) .feedback`);
+    
+    if (!selected) {
+        alert('Please select an answer');
         return;
     }
 
-    let userAnswer;
-    let isCorrect = false;
+    let attempts = parseInt(localStorage.getItem(`question_${index}_attempts`) || '0');
+    attempts++;
+    localStorage.setItem(`question_${index}_attempts`, attempts);
 
-    if (question.type === 'matching') {
-        const answers = form.querySelector('input[type="hidden"]').value.split(',');
-        isCorrect = answers.every((answer, i) => {
-            return question.pairs[i].match === question.pairs[answer].match;
-        });
-        userAnswer = answers;
-    } else {
-        const selectedOption = form.querySelector('input[type="radio"]:checked');
-        if (!selectedOption) {
-            alert('Please select an answer!');
-            return;
-        }
-        userAnswer = selectedOption.value;
-        isCorrect = userAnswer === question.correct;
-    }
-
-    form.dataset.attempts = attempts + 1;
-    const attemptsLeft = maxAttempts - (attempts + 1);
-    form.querySelector('.attempts-left').textContent = `Attempts left: ${attemptsLeft}`;
-
-    const feedbackDiv = form.querySelector('.feedback') || document.createElement('div');
-    feedbackDiv.className = `alert ${isCorrect ? 'alert-success' : 'alert-danger'} mt-3 feedback`;
+    const userAnswer = selected.value;
+    const isCorrect = userAnswer === question.correct;
     
     if (isCorrect) {
-        feedbackDiv.innerHTML = `✅ Correct!`;
-        form.querySelectorAll('input').forEach(input => input.disabled = true);
-        form.querySelector('button').disabled = true;
+        feedback.innerHTML = '<div class="alert alert-success">Correct! Well done!</div>';
+        localStorage.setItem(`question_${index}_answered`, 'true');
     } else {
-        if (attemptsLeft > 0) {
-            feedbackDiv.innerHTML = `❌ Incorrect! Try again. You have ${attemptsLeft} attempts left.`;
-        } else {
-            feedbackDiv.innerHTML = `❌ Incorrect! No more attempts left.<br>
-                <strong>The correct answer is:</strong> ${
-                    question.type === 'matching' 
-                        ? question.pairs.map(p => `${p.item} → ${p.match}`).join(', ')
-                        : question.type === 'multichoice' || question.type === 'definition'
-                            ? question.options[question.correct]
-                            : question.correct
-                }`;
-            form.querySelectorAll('input').forEach(input => input.disabled = true);
-            form.querySelector('button').disabled = true;
-        }
+        feedback.innerHTML = '<div class="alert alert-danger">Incorrect. Try again!</div>';
     }
 
-    if (!form.querySelector('.feedback')) {
-        form.appendChild(feedbackDiv);
+    if (attempts >= question.maxAttempts || isCorrect) {
+        displayQuestions();
     }
 }
 
 // Initialize the page
 document.addEventListener('DOMContentLoaded', () => {
-    let questions = [];
     loadQuestions();
 });
